@@ -1,0 +1,128 @@
+// src/app/comments-cell-renderer/comments-cell-renderer.component.ts
+import { Component } from '@angular/core';
+import { ICellRendererAngularComp } from 'ag-grid-angular';
+import { ICellRendererParams } from 'ag-grid-community';
+
+interface Comment {
+  text: string;
+  time: string;
+}
+
+@Component({
+  selector: 'app-comments-cell-renderer',
+  template: `
+    <button (click)="onAdd()" mat-button>新增</button>
+    <button (click)="onHistory()" mat-button>历史</button>
+  `,
+  styles: [`
+    :host { display: flex; gap: 4px; }
+    button { font-size: 12px; line-height: 1; padding: 2px 6px; }
+  `]
+})
+export class CommentsCellRendererComponent implements ICellRendererAngularComp {
+  private params!: ICellRendererParams;
+  private data!: any;
+
+  agInit(params: ICellRendererParams): void {
+    this.params = params;
+    this.data = params.data;
+  }
+
+  refresh(params: ICellRendererParams): boolean {
+    // 如果你的逻辑里可能更新 data.comments，ag-Grid 会调用这里
+    this.params = params;
+    this.data = params.data;
+    return true;
+  }
+
+  onAdd(): void {
+    const text = prompt('请输入新的 comment：');
+    if (!text) { return; }
+    const comments: Comment[] = this.data.comments || [];
+    comments.push({ text, time: new Date().toLocaleString() });
+    this.data.comments = comments;
+    // 重新渲染这一格
+    this.params.api.refreshCells({
+      rowNodes: [ this.params.node ],
+      columns: [ this.params.colDef.field! ]
+    });
+  }
+
+  onHistory(): void {
+    const comments: Comment[] = this.data.comments || [];
+    if (!comments.length) {
+      alert('暂无历史评论');
+      return;
+    }
+    const msg = comments
+      .map((c, i) => `${i+1}. [${c.time}] ${c.text}`)
+      .join('\n\n');
+    alert(msg);
+  }
+}
+
+// src/app/app.module.ts
+import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { AgGridModule } from 'ag-grid-angular';
+import { AppComponent } from './app.component';
+import { CommentsCellRendererComponent } from './comments-cell-renderer/comments-cell-renderer.component';
+
+@NgModule({
+  declarations: [
+    AppComponent,
+    CommentsCellRendererComponent
+  ],
+  imports: [
+    BrowserModule,
+    // 把你的 renderer 组件告诉 ag-Grid
+    AgGridModule.withComponents([ CommentsCellRendererComponent ])
+  ],
+  bootstrap: [AppComponent]
+})
+export class AppModule { }
+
+
+
+// src/app/app.component.ts
+import { Component } from '@angular/core';
+import { ColDef } from 'ag-grid-community';
+import { CommentsCellRendererComponent } from './comments-cell-renderer/comments-cell-renderer.component';
+
+@Component({
+  selector: 'app-root',
+  template: `
+    <ag-grid-angular
+      style="width: 100%; height: 100%"
+      [rowData]="rowData"
+      [columnDefs]="columnDefs"
+      [frameworkComponents]="frameworkComponents"
+      class="ag-theme-alpine"
+    ></ag-grid-angular>
+  `
+})
+export class AppComponent {
+  columnDefs: ColDef[] = [
+    { field: 'id', headerName: 'ID', width: 80 },
+    { field: 'name', headerName: 'Name' },
+    {
+      headerName: 'Comments',
+      field: 'comments',
+      cellRenderer: 'commentsCellRenderer',
+      width: 160
+    }
+  ];
+
+  // 把 key 对应到你的 Angular 组件
+  frameworkComponents = {
+    commentsCellRenderer: CommentsCellRendererComponent
+  };
+
+  rowData = [
+    { id: 1, name: 'Alice', comments: [] },
+    { id: 2, name: 'Bob',   comments: [
+        { text: '初始评论', time: '2025-05-07 12:00' }
+      ] },
+    // ……
+  ];
+}
